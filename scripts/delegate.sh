@@ -526,6 +526,8 @@ cmd_qa() {
 }
 
 # ── codex (direct exec with --json, token capture) ───────────────────────────
+# Codex invocation mirrors the bundled wrapper at codex/scripts/codex.sh
+# (vendored from tomc98/claude-code-codex-skill by Thomas Csere, MIT).
 
 cmd_codex() {
   local run_id=${1:-} chunk_id=${2:-} prompt=${3:-}

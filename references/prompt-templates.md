@@ -82,7 +82,7 @@ Report the file list and test summary.
 
 Launch:
 ```bash
-{base}/../codex/scripts/codex.sh run "<prompt>" \
+{base}/codex/scripts/codex.sh run "<prompt>" \
   --dir "$WS" \
   --sandbox workspace-write \
   --effort medium
@@ -148,7 +148,7 @@ OUTPUT:
 ### Launch
 
 ```bash
-{base}/../codex/scripts/codex.sh run "<filled review prompt>" \
+{base}/codex/scripts/codex.sh run "<filled review prompt>" \
   --dir "$WS" \
   --sandbox workspace-write \
   --effort high \

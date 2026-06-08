@@ -15,17 +15,14 @@
 Paste this into a Claude Code session and let Claude do the install:
 
 ```
-Install the intelligent-delegation skill: clone https://github.com/justinwilliames/claude-intelligent-delegation into ~/.claude/skills/intelligent-delegation, then verify by listing ~/.claude/skills/intelligent-delegation/SKILL.md. If you want Codex chunks too, also clone https://github.com/tomc98/claude-code-codex-skill into ~/.claude/skills/codex. Confirm jq is on PATH; if not, install it via brew install jq.
+Install the intelligent-delegation skill: clone https://github.com/justinwilliames/claude-codex-intelligent-delegation-skill into ~/.claude/skills/intelligent-delegation, then verify by listing ~/.claude/skills/intelligent-delegation/SKILL.md. The Codex wrapper is bundled — no separate install needed. Confirm jq is on PATH; if not, install it via brew install jq.
 ```
 
 Or in a terminal:
 
 ```bash
-git clone https://github.com/justinwilliames/claude-intelligent-delegation \
+git clone https://github.com/justinwilliames/claude-codex-intelligent-delegation-skill \
   ~/.claude/skills/intelligent-delegation
-
-# optional, for Codex chunks
-git clone https://github.com/tomc98/claude-code-codex-skill ~/.claude/skills/codex
 
 # dependency
 brew install jq   # or: apt install jq
@@ -62,8 +59,9 @@ Skip the triage for conversational replies, status questions, single-line edits,
 ## Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
-- [claude-code-codex-skill](https://github.com/tomc98/claude-code-codex-skill) installed at `~/.claude/skills/codex` (only if you want Codex chunks)
 - `jq` on PATH
+
+The Codex wrapper is bundled under [`codex/`](codex/) — vendored from [tomc98/claude-code-codex-skill](https://github.com/tomc98/claude-code-codex-skill) (Thomas Csere, MIT). No separate install required.
 
 ## Updating
 
@@ -151,12 +149,20 @@ intelligent-delegation/
 ├── scripts/
 │   ├── delegate.sh               # Full orchestrator engine (git-free)
 │   └── detect-verification.sh    # Auto-detect test/typecheck commands
-└── references/
-    ├── routing.md                # Model-routing decision tree
-    ├── manifest-schema.md        # Manifest schema + examples
-    ├── orchestration-patterns.md # Sequencing, audit, resume, anti-patterns
-    └── prompt-templates.md       # Chunk prompt templates (Sonnet, Codex, Review)
+├── references/
+│   ├── routing.md                # Model-routing decision tree
+│   ├── manifest-schema.md        # Manifest schema + examples
+│   ├── orchestration-patterns.md # Sequencing, audit, resume, anti-patterns
+│   └── prompt-templates.md       # Chunk prompt templates (Sonnet, Codex, Review)
+└── codex/                        # Vendored Codex wrapper — tomc98/claude-code-codex-skill (MIT)
+    ├── scripts/codex.sh          # The Codex CLI wrapper the orchestrator calls
+    ├── LICENSE                   # Thomas Csere's original MIT licence (unmodified)
+    └── VENDORED-FROM.md          # Provenance + attribution
 ```
+
+## Credits
+
+The bundled Codex wrapper under [`codex/`](codex/) is vendored from [tomc98/claude-code-codex-skill](https://github.com/tomc98/claude-code-codex-skill) by Thomas Csere, used under the MIT License (his original licence is preserved at [`codex/LICENSE`](codex/LICENSE)).
 
 ## License
 

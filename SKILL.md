@@ -433,7 +433,7 @@ Verification: jq '.[] | select(.category | IN("transactional","marketing","syste
 
 **Codex chunks** — `--dir` points at the chunk workspace, `--add-dir` (read) points at the project:
 ```bash
-{base}/../codex/scripts/codex.sh run "<intent + same workspace contract>" \
+{base}/codex/scripts/codex.sh run "<intent + same workspace contract>" \
   --dir "$WS_C1" --sandbox workspace-write
 ```
 
@@ -510,7 +510,7 @@ For runs that don't trip any trigger (1-2 chunk runs, scratch work, prototypes),
 **1. Spawn both reviews in parallel** (same message, two tool calls):
 
 - **Opus review** — Agent tool, `subagent_type="general-purpose"`, no `model=` override (inherits Opus from the orchestrator session). Fresh context window — the subagent has not seen the build conversation, so it reviews the applied code cold. Hand it: the project path, the list of files changed, the original task description, the manifest, and the review dimensions below.
-- **Codex review** — `{base}/../codex/scripts/codex.sh run` with `--effort high --model gpt-5.5`, background. Hand it the same brief. Codex's review writes `review-codex.md` to a temp workspace.
+- **Codex review** — `{base}/codex/scripts/codex.sh run` with `--effort high --model gpt-5.5`, background. Hand it the same brief. Codex's review writes `review-codex.md` to a temp workspace.
 
 Both reviewers MUST be given:
 - The original task and manifest (so they know what was supposed to be built).
