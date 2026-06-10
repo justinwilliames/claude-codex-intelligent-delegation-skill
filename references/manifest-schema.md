@@ -23,14 +23,17 @@ There is no `integration_branch`. The skill is git-free; integration happens via
 | `title` | string | yes | Short operator-friendly label. |
 | `intent` | string | yes | The outcome the chunk must achieve. Not just a restatement of `title`. |
 | `files_touched` | string[] | yes | **Non-empty.** Relative paths from project root. Used for: collision validation, audit (chunk must not produce undeclared files), preflight (target files must not pre-exist). |
-| `runner` | enum | yes | One of `sonnet-subagent` \| `codex` \| `main`. |
+| `runner` | enum | yes | One of `sonnet-subagent` \| `haiku-subagent` \| `codex` \| `fable-subagent` \| `opus-1m-cli` \| `main`. |
 | `depends_on` | string[] | no | Chunk IDs that must complete before this one starts. Default `[]`. |
 | `verification` | string | no | Shell command, runs in project root after `apply`. Skipped if absent. |
 
 ### Runner semantics
 
 - `sonnet-subagent` — orchestrator launches a Sonnet `Agent(...)` with the chunk prompt and absolute workspace path. Runs in background; orchestrator collects via `TaskOutput`.
+- `haiku-subagent` — same `Agent(...)` shape with `model="haiku"`. Narrow text/data work only (classify, tag, format-convert, bulk mechanical edits) where verification is trivial. See SKILL.md → "When to Use Haiku vs Sonnet".
 - `codex` — orchestrator runs `codex.sh run ... --dir <workspace> --sandbox workspace-write`. Background.
+- `fable-subagent` — `Agent(...)` shape with `model="fable"`. **Apex reasoning target, not a default worker.** Reserve for the single hardest sub-problem in a run: research-grade decomposition, the subtlest algorithmic correctness, a blocker-conflict tie-break. 2× Opus cost — escalate only when Opus 4.8 has plateaued. See SKILL.md → "Fable 5 routing".
+- `opus-1m-cli` — Bash subprocess to the Claude Code CLI for a chunk whose *read surface* exceeds ~150K tokens (native 1M window, fresh session). Not the orchestrator seat. See SKILL.md → "1M Context Routing".
 - `main` — orchestrator implements this chunk itself in-session (after fan-out returns, or before, depending on `depends_on`). Reserve for chunks that genuinely need orchestrator context.
 
 ### Files_touched discipline

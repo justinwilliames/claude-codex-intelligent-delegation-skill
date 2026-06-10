@@ -58,6 +58,19 @@ Agent(
 )
 ```
 
+## Modifying existing files (refactor chunks)
+
+The template above says "FILES TO CREATE" — the common case. When a chunk must **modify** a file that already exists in the project (a rename, a refactor, an edit to existing code), two things change:
+
+1. **The chunk reads the project original and writes the COMPLETE modified file into its workspace** at the same relative path. It does not emit a diff or a patch — it emits the whole updated file, because `apply` copies workspace files over project files verbatim. Swap the template's `FILES TO CREATE` stanza for:
+   ```
+   FILES TO MODIFY (read the original from PROJECT, write the full updated file to WORKSPACE at the same relative path):
+     - <files_touched[0]>
+   ```
+2. **`preflight` will flag every existing target path** (that's its job — it guards against silent overwrites). For a modify-run this is *expected*: confirm the overwrite with the user at Step 4, then run `preflight --force`. `audit` still enforces that the chunk produced only its declared `files_touched`.
+
+`files_touched` lists every file the chunk creates **or modifies** — the collision/audit guarantees are identical either way.
+
 ## Codex template
 
 Codex is opinionated and minimal. Lead with the contract, then the intent:
@@ -194,6 +207,6 @@ In practice: most chunks have purely local imports (`./foo.js` to `./foo.test.js
 
 If a chunk reports failure or its verification fails:
 1. Orchestrator sets `status=failed`, `result=<one-line error>`.
-2. Orchestrator does NOT auto-retry.
+2. Orchestrator does NOT auto-retry *hard* failures. (Transient failures — `timeout`/`429`/`ECONNRESET`/`503` — get exactly one silent retry; see the transient-vs-hard policy in `orchestration-patterns.md`.)
 3. Surface to the user: chunk id, intent, error, suggested fix.
 4. If the user approves, re-run via `/delegate resume <run-id>` after fixing the chunk's source state.

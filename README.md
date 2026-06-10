@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/caldwell.png" alt="Caldwell, the orchestrator" width="180">
-</p>
-
 <h1 align="center">claude-intelligent-delegation</h1>
 
 <p align="center">
@@ -38,15 +34,16 @@ Long main sessions degrade reasoning quality and burn prompt cache. This skill k
 
 ## Upfront triage — the load-bearing behaviour
 
-The skill is designed to fire **at the start of every non-trivial task**, before the main session reads files or spawns Explore subagents. Claude runs a 5-second, 5-question check:
+The skill is designed to fire **at the start of every non-trivial task**, before the main session reads files or spawns Explore subagents. Claude runs a 5-second, 6-question check:
 
 1. **Scope** — does this touch 2+ independent files/features/deliverables?
 2. **Context** — would in-session execution burn >30% of remaining context?
 3. **Fresh-window** — would a single deep task benefit from a fresh prompt cache + clean reasoning surface?
 4. **Parallelism** — are there 2+ independent units that could run concurrently?
-5. **Model fit** (only if 1–4 are all no) — does the task genuinely need Opus reasoning? If not, route to a 1-chunk Sonnet or Codex run for efficiency.
+5. **Large surface** — does the chunk's read surface exceed ~150K tokens? If so, route it to a 1M Opus 4.8 subprocess (never the orchestrator seat).
+6. **Model fit** (only if 1–5 are all no) — does the task genuinely need Opus reasoning? If not, route to a 1-chunk Sonnet or Codex run for efficiency. If it's *harder* than Opus 4.8 (research-grade decomposition, subtlest correctness), escalate that sub-problem to a Fable 5 delegate — a target, never the orchestrator seat.
 
-If any of 1–4 is yes, delegate. Even a 1-chunk run is worth it for fresh-window value alone — parallelism is one optimisation; fresh-context and model-fit are equally valid reasons to delegate. The Q5 check stops the main session burning Opus on mechanical work (renames, boilerplate, pattern-mirroring, lint/format fixes) that Sonnet handles better and cheaper.
+If any of 1–4 is yes, delegate. Even a 1-chunk run is worth it for fresh-window value alone — parallelism is one optimisation; fresh-context and model-fit are equally valid reasons to delegate. The Q6 check stops the main session burning Opus on mechanical work (renames, boilerplate, pattern-mirroring, lint/format fixes) that Sonnet handles better and cheaper.
 
 Claude states the call in a single line so you can redirect early:
 
@@ -54,7 +51,7 @@ Claude states the call in a single line so you can redirect early:
 > `Delegation triage: 1-chunk Sonnet run — mechanical rename across 3 files, no Opus reasoning required.`
 > `Delegation triage: in-session on Opus — multi-file architectural decision, reasoning needed here.`
 
-Skip the triage for conversational replies, status questions, single-line edits, or lookups under 3 file reads.
+Skip the triage for conversational replies, status questions, single-line edits, or one-file one-read lookups.
 
 ## Prerequisites
 
@@ -79,7 +76,7 @@ Claude Code loads the skill automatically when you ask it to delegate or decompo
 /delegate review "<draft>"       # 1-chunk Codex run — adversarial second opinion (review.md, no apply)
 /delegate resume [run-id]        # re-fan only pending/failed chunks (defaults to last run)
 /delegate qa <run-id>            # re-run QA on an existing run
-/delegate abort <run-id>         # kill all running chunks; mark them failed
+/delegate abort <run-id>         # mark all running chunks failed; write ABORTED marker (blocks apply)
 /delegate watch [run-id]         # compact one-shot snapshot of state.tsv (used for in-chat progress)
 ```
 
@@ -102,10 +99,13 @@ Audit and QA failures are always surfaced to you — never auto-resolved.
 
 | Tier | Model | Used for |
 |------|-------|---------|
-| Orchestrator | Opus 4.7 (main session) | Planning, reviewing, QA, reporting |
-| Planning | Opus 4.7 (Plan subagent) | Manifest authoring for non-trivial decompositions |
+| Orchestrator | Opus 4.8 (main session) | Planning, reviewing, QA, reporting |
+| Apex reasoning | Fable 5 (delegate target) | The single hardest sub-problem when Opus 4.8 plateaus — never the orchestrator seat |
+| Planning | Opus 4.8 (Plan subagent) | Manifest authoring for non-trivial decompositions |
 | Build | Sonnet 4.6 (Agent) | Parallel implementation chunks |
-| Integration | Opus 4.7 (main, in-line) | `runner: main` chunks — glue, cross-cutting edits |
+| Cheap parallel | Haiku 4.5 (Agent) | High-volume narrow text/data chunks (classify, convert, bulk edits) |
+| Large-context | Opus 4.8 1M (CLI subprocess) | A single chunk with a >150K read surface — never the seat |
+| Integration | Opus 4.8 (main, in-line) | `runner: main` chunks — glue, cross-cutting edits |
 | Precision | Codex GPT-5.5 | Deep work, adversarial review, second opinions |
 | Lookup | Haiku 4.5 (Explore subagent) | File search, symbol lookup |
 
@@ -144,8 +144,6 @@ intelligent-delegation/
 ├── SKILL.md                      # Skill definition (loaded by Claude Code)
 ├── README.md                     # This file
 ├── LICENSE                       # MIT
-├── assets/
-│   └── caldwell.png              # Project mascot
 ├── scripts/
 │   ├── delegate.sh               # Full orchestrator engine (git-free)
 │   └── detect-verification.sh    # Auto-detect test/typecheck commands

@@ -6,10 +6,13 @@ This document explains how the orchestrator should decide between keeping work i
 
 | Tier | Model | Primary job | When to use it | What stays in session |
 |------|-------|-------------|----------------|-----------------------|
-| Orchestrator | Opus 4.7 | Planning, decomposition, QA, reporting, user communication | Always. The main session owns the task, writes the manifest, approves fan-out, reviews outputs, and presents the result. | The full task narrative, tradeoffs, manifest state, QA status, and user-facing explanation stay here. |
-| Planning | Opus 4.7 (Plan subagent) | Manifest authoring, decomposition design, multi-file refactor architecture | For non-trivial decompositions (>3 chunks or unfamiliar codebase). Frees the main session from holding planning context while keeping Opus reasoning quality. | Only the final JSON manifest and Opus's review notes stay in the main session. |
-| Build | Sonnet 4.6 subagent in a worktree | Parallel implementation chunks | Use for independent chunks that touch multiple files, follow repo conventions, and should land as mergeable diffs. This is the default worker for real build work. | Only the chunk prompt, the worktree branch, and the chunk result live in the subagent. Main-session knowledge does not automatically carry over. |
-| Integration | Opus 4.7 (main session, in-line) | Integration glue, cross-cutting edits, sibling-chunk coordination | Chunks that genuinely need orchestrator context — package.json edits, root config changes, glue between sibling chunks. Use sparingly: most chunks should be `sonnet-subagent`. | The full chunk implementation lives in-session since it executes in-context. |
+| Orchestrator | Opus 4.8 | Planning, decomposition, QA, reporting, user communication | Always. The main session owns the task, writes the manifest, approves fan-out, reviews outputs, and presents the result. | The full task narrative, tradeoffs, manifest state, QA status, and user-facing explanation stay here. |
+| Apex reasoning | Fable 5 (delegate target — `Agent(model="fable")`) | The single hardest sub-problem in a run | Escalate when Opus 4.8 has plateaued: research-grade decomposition, subtlest algorithmic correctness, blocker-conflict tie-break. 2× Opus cost. A **target**, never the seat — see SKILL.md → "Fable 5 routing". | Only the Fable delegate's result (a manifest, a fix, a verdict) returns to the seat. |
+| Planning | Opus 4.8 (Plan subagent) | Manifest authoring, decomposition design, multi-file refactor architecture | For non-trivial decompositions (>3 chunks or unfamiliar codebase). Frees the main session from holding planning context while keeping Opus reasoning quality. | Only the final JSON manifest and Opus's review notes stay in the main session. |
+| Build | Sonnet 4.6 subagent (fresh, own workspace) | Parallel implementation chunks | Independent chunks that touch multiple files, follow repo conventions, and write clean outputs into their workspace for copy-back. The default worker for real build work. | Only the chunk prompt, its workspace, and the chunk result live in the subagent. Main-session knowledge does not carry over. |
+| Cheap parallel | Haiku 4.5 subagent (`model="haiku"`) | High-volume narrow text/data chunks | Classify/tag, format-convert, bulk mechanical edits, per-row enrichment — where verification is trivial (schema/string/lint). ~3× cheaper than Sonnet on input. | Only the structured outputs return; the orchestrator collates. |
+| Large-context | Opus 4.8 1M via CLI subprocess (`opus-1m-cli`) | A single chunk with a >150K read surface | Monorepo-wide review, big PDF/transcript ingest, multi-hundred-file analysis. Native 1M window; never the orchestrator seat. | Only the chunk's result/verdict returns. |
+| Integration | Opus 4.8 (main session, in-line) | Integration glue, cross-cutting edits, sibling-chunk coordination | Chunks that genuinely need orchestrator context — package.json edits, root config changes, glue between sibling chunks. Use sparingly: most chunks should be `sonnet-subagent`. | The full chunk implementation lives in-session since it executes in-context. |
 | Precision | Codex GPT-5.5 | Deep precision work, adversarial review, second opinion | Use when you want a different model family, a skeptical review, a narrowly scoped algorithmic fix, or a careful pass over a risky integration point. | Codex reads the repo fresh. The main session should keep only the ask, the returned result, and any review findings. |
 | Lookup | Haiku 4.5 explore subagent | Fast file discovery and lightweight searches | Use for grep-like tasks, symbol discovery, finding entry points, or locating candidate files before deciding where build work belongs. | Only the extracted facts and file paths should be carried back. Haiku should not own implementation context. |
 
@@ -20,8 +23,9 @@ This document explains how the orchestrator should decide between keeping work i
 3. If delegation is justified, split by file ownership boundaries first.
 4. Pick Sonnet when the chunk should produce a conventional repo diff.
 5. Pick Codex when you want an independent model perspective or a narrow precision task.
-6. **Before defaulting to "in-session on Opus", check model fit.** Mechanical / pattern-following / boilerplate work routes to a 1-chunk Sonnet sub-agent even if context is healthy and there is no fan-out value. Opus is reserved for design, tradeoffs, synthesis, orchestration, and user communication.
-7. Keep integration, conflict decisions, QA, and user communication in the main Opus session.
+6. **Before defaulting to "in-session on Opus", check model fit — both directions.** *Down:* mechanical / pattern-following / boilerplate work routes to a 1-chunk Sonnet sub-agent even if context is healthy and there is no fan-out value. *Up:* a sub-problem harder than Opus 4.8 (research-grade decomposition, subtlest correctness, a blocker-conflict tie-break) escalates to a Fable 5 delegate. Opus is reserved for design, tradeoffs, synthesis, orchestration, and user communication — and it stays the orchestrator even when it dispatches Fable work. Fable is a *target*, never the seat.
+7. Route any chunk whose *read surface* exceeds ~150K tokens to `opus-1m-cli` (a fresh 1M Opus 4.8 subprocess) — decomposition first if it splits cleanly; 1M only for genuinely irreducible surfaces. Never bloat the orchestrator seat.
+8. Keep integration, conflict decisions, QA, and user communication in the main Opus 4.8 session.
 
 ## Context Budget Thresholds
 
@@ -38,7 +42,7 @@ Typical action:
 - Read the relevant files.
 - Make the change directly.
 - Run verification.
-- Do not create a delegation manifest unless the task has an unusual need for independent review.
+- Do not create a *multi-chunk* manifest for tiny work — but a **1-chunk** delegation still wins when the task is mechanical/pattern-following (route to Sonnet for efficiency; Opus reasoning adds nothing) or needs an independent perspective (Codex). Context-health gates *fan-out*, not *all delegation*.
 
 ### `30-60%` context used
 
@@ -64,7 +68,7 @@ Rationale:
 - The orchestrator should spend its remaining context on decomposition, chunk prompts, QA, and user decisions.
 
 Typical action:
-- Write `delegation-manifest.json`.
+- `delegate.sh init`, then author and `write-manifest` the manifest.
 - Split independent chunks by file ownership.
 - Route build chunks to Sonnet.
 - Route skeptical review or precision work to Codex.
@@ -94,10 +98,10 @@ Use this table after you have already decided that a chunk should not stay in th
 
 | Decision factor | Prefer Sonnet subagent | Prefer Codex |
 |-----------------|------------------------|--------------|
-| File scope | Multi-file changes, repo-wide conventions, a chunk that will create a branch to merge | One file, one subsystem, one algorithm, or one targeted review pass |
+| File scope | Multi-file changes, repo-wide conventions, a chunk that writes a multi-file workspace for copy-back | One file, one subsystem, one algorithm, or one targeted review pass |
 | Need for independent perspective | Low to medium. You mostly want throughput and clean implementation. | High. You want a second model family or an adversarial opinion. |
-| Project conventions | Strongly matters. Sonnet is the default for following established local patterns and producing mergeable worktree diffs. | Less about convention-following, more about precision and skepticism. |
-| Output shape | A chunk result that can be merged with sibling branches | A review report, a narrow patch, a risk assessment, or a deep focused diff |
+| Project conventions | Strongly matters. Sonnet is the default for following established local patterns and producing clean workspace outputs. | Less about convention-following, more about precision and skepticism. |
+| Output shape | A chunk workspace that copies back cleanly alongside siblings | A review report, a narrow patch, a risk assessment, or a deep focused diff |
 | Typical role | Builder | Precision worker or reviewer |
 
 ### Choose Sonnet when
@@ -105,7 +109,7 @@ Use this table after you have already decided that a chunk should not stay in th
 - The chunk touches several related files.
 - The repo has strong conventions that should be mirrored.
 - You want parallelizable implementation throughput.
-- The output should merge cleanly into an integration branch.
+- The output should copy back cleanly alongside sibling chunks.
 
 ### Choose Codex when
 
@@ -123,6 +127,7 @@ A 1-chunk delegation to Sonnet or Codex is a valid pattern for three distinct re
 | **Fresh context window** | Sonnet (or Codex for deep algorithm) | Task would burn 40%+ of main-session context, force 5+ file reads, or hold a 500+ line working set |
 | **Model fit / efficiency** | Sonnet | Task is mechanical / pattern-following / boilerplate — does not need Opus reasoning |
 | **Independent perspective** | Codex, `--effort high` | Adversarial review, narrow precision fix, skeptical second opinion on a plan |
+| **Apex reasoning** | Fable 5 (`model="fable"`) | Sub-problem harder than Opus 4.8 — research-grade decomposition, subtlest correctness, blocker-conflict tie-break. 2× cost; escalate only when Opus has plateaued, never as a default |
 
 Use single-chunk delegation when:
 
@@ -242,7 +247,7 @@ Suggested chunking:
 
 Why Sonnet:
 - Each chunk spans multiple files.
-- All chunks should follow project conventions and return mergeable diffs.
+- All chunks should follow project conventions and return clean workspace outputs.
 - The work is parallelizable if file ownership is clean.
 
 Why not Codex:
@@ -266,10 +271,10 @@ Suggested routing:
 4. Codex chunk: adversarial review of transaction boundaries, failure modes, and missing tests
 
 Why this mix works:
-- Sonnet handles the broad multi-file refactor and produces mergeable branches.
+- Sonnet handles the broad multi-file refactor and produces clean workspace outputs.
 - Codex provides a skeptical second pass that is not anchored to the same implementation assumptions.
-- The main session integrates the branches, reviews Codex findings, runs project QA, and decides whether to address review comments before presenting the result.
+- The main session copies back the chunk workspaces, reviews Codex findings, runs project QA, and decides whether to address review comments before presenting the result.
 
 Practical note:
 - The Codex review chunk should not race against files still changing underneath it.
-- Run it after the implementation chunks land, or point it at a stable integration branch snapshot.
+- Run it after the implementation chunks land and copy back, or point it at the applied project snapshot.

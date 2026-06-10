@@ -13,7 +13,7 @@ Each arrow corresponds to one `delegate.sh` subcommand. The orchestrator does no
 
 ## Parallelism
 
-**Default**: every chunk with `depends_on: []` is launched in a single tool-call batch (`Agent` for sonnet, `Bash` background for codex). The orchestrator then waits on `TaskOutput` / task-notification for each.
+**Default**: every chunk with `depends_on: []` is launched in a single tool-call batch (`Agent` for sonnet/haiku/fable subagents, `Bash` background for codex and `opus-1m-cli` subprocesses). The orchestrator then waits on `TaskOutput` / task-notification for each.
 
 **With dependencies**: topologically sort. Launch all chunks whose deps are satisfied in one batch. When a wave returns, mark `status=done`, then launch the next wave.
 
@@ -38,6 +38,7 @@ Never write to `state.tsv` directly — always via `delegate.sh set`. The schema
 `tokens` and `duration_ms` come from the runner:
 - Sonnet `Agent` `task-notification` includes `<usage><total_tokens>` and `<duration_ms>` fields. Parse them from the notification block and store via `delegate.sh set` (the orchestrator must call this — the engine doesn't auto-capture for sonnet).
 - Codex: the engine's `cmd_codex` parses JSONL `turn.completed` events for `usage.input_tokens + usage.output_tokens` and auto-stores the sum.
+- Haiku and Fable subagents report via the same `task-notification` fields as Sonnet — parse and `delegate.sh set` them. `opus-1m-cli` subprocesses have no task-notification; scrape the final stdout line or parse `--output-format json` for token counts.
 
 This data is the whole point of doing the orchestration in the first place — it tells the user whether codex was cheaper than sonnet for this chunk class.
 

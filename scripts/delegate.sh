@@ -170,7 +170,10 @@ cmd_write_manifest() {
 
   # seed state.tsv chunk rows from manifest (idempotent: replaces existing data rows)
   local state; state=$(state_of "$run_id")
-  local header; header=$(head -n 2 "$state")
+  # preserve ALL leading metadata (# lines) plus the column-header row — cmd_init
+  # writes three # lines (run_id/project/task) then the header; head -n 2 dropped
+  # the task line and the column header, breaking handoff/summary.
+  local header; header=$(awk 'BEGIN{h=1} h&&/^#/{print;next} h{print;h=0;next} {exit}' "$state")
   {
     printf '%s\n' "$header"
     jq -r '
@@ -231,7 +234,7 @@ cmd_validate() {
           if ($c|type) != "object" then "chunk[\($i)] must be an object"
           else
             ((["id","title","intent","runner","files_touched"] - ($c|keys_unsorted))[]? | "chunk[\($i)] missing key: \(.)"),
-            (if ($c|has("runner")) and ($c.runner != "sonnet-subagent" and $c.runner != "codex" and $c.runner != "main")
+            (if ($c|has("runner")) and ([ "sonnet-subagent","haiku-subagent","codex","fable-subagent","opus-1m-cli","main" ] | index($c.runner) | not)
               then "chunk[\($i)] invalid runner: \($c.runner)" else empty end),
             (if ($c|has("files_touched")) and ($c.files_touched|type != "array")
               then "chunk[\($i)] files_touched must be an array" else empty end),
@@ -461,6 +464,8 @@ cmd_audit() {
 cmd_apply() {
   local run_id=$1
   ensure_run "$run_id"
+  # abort marker is a hard stop — refuse to copy any chunk into the project
+  [[ -f "$(run_dir "$run_id")/ABORTED" ]] && { print_error "run aborted — refusing apply. Clean + re-init, or resume after fixing the root cause."; exit 1; }
   local project; project=$(read_meta "$(state_of "$run_id")" project)
   [[ -d $project ]] || { print_error "project path missing: $project"; exit 1; }
 
