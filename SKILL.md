@@ -117,7 +117,7 @@ Use `runner: main` sparingly — typically the final chunk in a chain when integ
 
 | Use Fable 5 for | Spawn |
 |-----------------|-------|
-| **Research-grade decomposition** — a genuinely novel task where getting the chunk boundaries *right* is the hard part, and a wrong cut wastes the whole fan-out | One-shot Fable Plan delegate → returns the manifest → orchestrate the build on Opus 4.8 |
+| **Research-grade decomposition** — a genuinely novel task where getting the chunk boundaries *right* is the hard part, and a wrong cut wastes the whole fan-out — **and ultrathink on the Opus seat has already plateaued** (try the free in-seat ultrathink first; see Step 2's planning ladder) | One-shot Fable Plan delegate → returns the manifest → orchestrate the build on Opus 4.8 |
 | **The subtlest algorithmic correctness** — concurrency invariants, numerical edge cases, a proof-shaped argument where Opus *and* Codex both hesitate | 1-chunk `fable-subagent` (CLI subprocess if it also needs a >150K read surface) |
 | **Blocker-conflict reconciliation** — Step 10.5 reviewers (Opus + Codex) disagree on a *blocker* and the orchestrator can't confidently adjudicate | Escalate that one finding's reconciliation to Fable 5; take its verdict as the tie-break |
 
@@ -139,7 +139,7 @@ Default is Opus-seat / Fable-target. The carve-out needs an explicit yes — nev
 
 | Runner | Effort control | Default | Override |
 |--------|---------------|---------|----------|
-| **Orchestrator (Opus 4.8)** | Adaptive thinking (`xhigh` default in Claude Code) | Full + adaptive | Stay on Opus; never switch to Sonnet manually. Adaptive thinking dynamically deepens reasoning on hard subproblems |
+| **Orchestrator (Opus 4.8)** | Adaptive thinking (`xhigh` default in Claude Code); **explicit ultrathink at the planning gate** | Full + adaptive | Stay on Opus; never switch to Sonnet manually. Adaptive thinking deepens reasoning on hard subproblems — but at the decomposition gate (Step 2), *force* the ceiling with ultrathink rather than trusting adaptivity to find it; a bad cut is the one orchestrator error no verification catches |
 | **Apex (Fable 5)** | `effort` (sweep `medium`/`high`/`xhigh`) + adaptive thinking | `high` | Start at `high`, not `xhigh` — Fable's intelligence ceiling is higher, so climb only if the sub-problem demands it. Never send `thinking:{type:"disabled"}` (400 on Fable — omit the param) |
 | **Sonnet subagents (4.6)** | Model tier + adaptive thinking | Adaptive (default) | Set `thinking="extended"` for genuinely deliberative tasks (math, multi-step symbolic reasoning); default OFF for code chunks — extended thinking can hurt by ~36% on intuitive tasks |
 | **Codex** | `CODEX_EFFORT` env var → `model_reasoning_effort` | `medium` | `CODEX_EFFORT=high` for deep algorithmic work or adversarial review |
@@ -360,6 +360,17 @@ Use the output to populate `project_verification` and chunk `verification` field
 
 ### Step 2 — Decompose
 
+**Ultrathink gate — engage before you cut.** Decomposition is the highest-leverage, least-recoverable decision in the whole flow: a wrong chunk boundary is invisible to every downstream verification command — it doesn't fail a test, it silently wastes the entire fan-out. That's precisely the "intelligence belongs where verification *can't* catch the error" case. When the cut is non-obvious, **explicitly escalate to the maximum thinking budget (ultrathink) before authoring the manifest** — don't trust adaptive thinking to find the ceiling on its own at this gate; force it. Trigger ultrathink when *any* of:
+
+- **Topology is a real choice** — by-feature vs by-layer vs by-file all look plausible, and the wrong one creates cross-chunk dependencies the manifest contract forbids.
+- **Many chunks (>~5) with `files_touched` overlap risk** — keeping them genuinely disjoint takes real thought, not a glance.
+- **Unfamiliar or tangled project** — boundary-finding depends on architecture you've had to infer rather than read off.
+- **A wrong cut is expensive to unwind** — long-running chunks, a large fan-out, or irreversible side effects downstream.
+
+Skip it for the obvious 2–3 chunk runs — burning max thinking on a trivial cut is the same waste as reflexive `xhigh` on a Sonnet chunk.
+
+**Planning escalation ladder:** adaptive `xhigh` (default, routine cuts) → **ultrathink in-seat** (high-stakes but Opus-tractable — cheap, no spawn, no latency) → **Fable 5 Plan delegate** (genuinely research-grade decomposition where ultrathink-on-Opus has plateaued; see "Fable 5 routing"). Climb only on a real signal, and exhaust the free in-seat ultrathink *before* reaching for the 2× Fable delegate.
+
 Author a manifest with this shape (see `references/manifest-schema.md` for the full spec):
 
 ```json
@@ -390,7 +401,7 @@ Install the manifest into the run:
 
 ### Step 2.5 — (Optional) Delegate manifest authoring to a Plan subagent
 
-For non-trivial decompositions (>3 chunks, unfamiliar project, or heavy file analysis), delegate the manifest-authoring to a Plan subagent (Opus, fresh subagent context) instead of doing it in the main session. Hand it the task + project path + a brief on the runner enum, and ask for JSON-only output. Main session reviews the returned manifest and installs via `write-manifest`. Saves main-session tokens on planning. Skip this for simple 2-3 chunk runs — overhead exceeds the benefit.
+For non-trivial decompositions (>3 chunks, unfamiliar project, or heavy file analysis), delegate the manifest-authoring to a Plan subagent (Opus, fresh subagent context) instead of doing it in the main session. Hand it the task + project path + a brief on the runner enum, and ask for JSON-only output. Main session reviews the returned manifest and installs via `write-manifest`. Saves main-session tokens on planning. Skip this for simple 2-3 chunk runs — overhead exceeds the benefit. **If the cut tripped the Step 2 ultrathink gate, push that depth into the Plan subagent** — instruct it to ultrathink on the boundary decision — or keep the decomposition in-seat; don't delegate a high-stakes cut to a default-effort subagent.
 
 ### Step 3 — Validate + preflight
 

@@ -83,7 +83,7 @@ Claude Code loads the skill automatically when you ask it to delegate or decompo
 ## How it works
 
 1. **Init** — fresh run dir at `$TMPDIR/delegate/<run-id>/`, with a compact `state.tsv` the orchestrator re-reads on demand.
-2. **Decompose** — Opus writes a manifest describing each chunk: id, intent, files_touched, runner, verification.
+2. **Decompose** — Opus writes a manifest describing each chunk: id, intent, files_touched, runner, verification. On high-stakes cuts (ambiguous boundaries, large fan-out, tangled project), the orchestrator engages **ultrathink** before committing the manifest — a bad cut is the one error no downstream verification catches. Escalates to a Fable 5 Plan delegate only if ultrathink-on-Opus plateaus.
 3. **Validate + preflight** — schema check, file-collision check across chunks, and a guard against overwriting existing project files.
 4. **Confirm** — manifest shown; you approve.
 5. **Prepare workspaces** — each chunk gets a private `<chunk-id>/workspace/` directory to write into.
