@@ -542,7 +542,7 @@ Run dual-model review if **any** of the following hold:
 |---------|-----------|
 | Chunk count | ≥3 chunks applied (excluding pure review runs) |
 | Files changed | ≥5 files written to the project |
-| Risk surface | Touches auth, payments, migrations, billing, security, data-loss-capable code paths, or anything user-facing in production |
+| Risk surface (fires at **any** size — a 1-line change still trips it) | Touches auth, payments, migrations, billing, security, data-loss-capable paths, or anything that ships to real users: **Liquid / personalisation logic, Braze segment or canvas entry filters, customer-facing sends, lifecycle / email content, production data writes**. Route by *blast radius, not diff size* — the riskiest changes are often the smallest. |
 | Lines of code | ≥300 net new lines across the run |
 | User flag | User said "high-stakes", "critical", "production", "ship-ready", or explicitly requested review |
 
